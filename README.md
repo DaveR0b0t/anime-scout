@@ -113,3 +113,5 @@ MIT License
 
 - Data provided by the AniList GraphQL API
 - Terminal UI powered by Rich
+
+Last updated to retrigger GitHub Actions.
