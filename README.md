@@ -1,5 +1,7 @@
 # anime-scout
 
+[![Tests](https://github.com/DaveR0b0t/anime-scout/actions/workflows/tests.yml/badge.svg)](https://github.com/DaveR0b0t/anime-scout/actions/workflows/tests.yml)
+
 anime-scout is a terminal-based anime discovery CLI powered by the AniList GraphQL API.
 
 You can search anime by title or genre, check trending and popular shows, view detailed information, and open or play trailers from your terminal.
