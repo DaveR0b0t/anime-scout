@@ -20,6 +20,7 @@ import re
 import subprocess
 import sys
 import time
+from urllib.parse import urlparse
 import webbrowser
 from datetime import date
 from pathlib import Path
@@ -355,6 +356,33 @@ def normalize_season_input(season: str) -> str:
 
 
 
+def positive_int(value: str) -> int:
+    """argparse type: require an integer > 0."""
+    n = int(value)
+    if n <= 0:
+        raise argparse.ArgumentTypeError("Value must be greater than 0.")
+    return n
+
+
+
+def non_negative_int(value: str) -> int:
+    """argparse type: require an integer >= 0."""
+    n = int(value)
+    if n < 0:
+        raise argparse.ArgumentTypeError("Value must be 0 or greater.")
+    return n
+
+
+
+def positive_float(value: str) -> float:
+    """argparse type: require a float > 0."""
+    n = float(value)
+    if n <= 0:
+        raise argparse.ArgumentTypeError("Value must be greater than 0.")
+    return n
+
+
+
 def compute_season_vars(season_arg: str | None, year_arg: int | None) -> tuple[Optional[str], Optional[int]]:
     if not season_arg:
         return None, None
@@ -525,17 +553,37 @@ def print_info(media: Dict[str, Any]) -> None:
     tr = media.get("trailer")
     if tr and tr.get("site") and tr.get("id"):
         trailer_url = trailer_to_url(tr["site"], tr["id"])
-        console.print(f"[bold]Trailer:[/bold] {trailer_url}")
+        if trailer_url:
+            console.print(f"[bold]Trailer:[/bold] {trailer_url}")
+        else:
+            console.print("[bold]Trailer:[/bold] (unsupported trailer provider)")
     else:
         console.print("[bold]Trailer:[/bold] (none listed)")
 
 
 
 def trailer_to_url(site: str, vid: str) -> str:
-    site_l = site.lower()
+    site_l = (site or "").strip().lower()
+    trailer_id = (vid or "").strip()
+
+    if not trailer_id:
+        return ""
     if site_l == "youtube":
-        return f"https://www.youtube.com/watch?v={vid}"
-    return vid
+        return f"https://www.youtube.com/watch?v={trailer_id}"
+    if site_l == "dailymotion":
+        return f"https://www.dailymotion.com/video/{trailer_id}"
+    if site_l == "vimeo":
+        return f"https://vimeo.com/{trailer_id}"
+    if is_safe_external_url(trailer_id):
+        return trailer_id
+    return ""
+
+
+
+def is_safe_external_url(url: str) -> bool:
+    """Allow only plain HTTP(S) URLs before opening external programs."""
+    parsed = urlparse((url or "").strip())
+    return parsed.scheme in {"http", "https"} and bool(parsed.netloc)
 
 
 # ------------------------------
@@ -605,13 +653,19 @@ def cmd_trailer(args: argparse.Namespace) -> None:
         return
 
     url = trailer_to_url(tr["site"], tr["id"])
+    if not url:
+        raise RuntimeError("Trailer provider is unsupported or missing a usable URL.")
 
     if args.open:
+        if not is_safe_external_url(url):
+            raise RuntimeError("Trailer URL is not a safe HTTP(S) URL.")
         webbrowser.open(url)
         console.print(f"Opened trailer: {url}")
         return
 
     if args.mpv:
+        if not is_safe_external_url(url):
+            raise RuntimeError("Trailer URL is not a safe HTTP(S) URL.")
         try:
             subprocess.run(["mpv", url], check=True)
         except FileNotFoundError:
@@ -630,7 +684,7 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--no-cache", action="store_true", help="Disable cache")
     p.add_argument(
         "--cache-ttl",
-        type=int,
+        type=non_negative_int,
         default=60 * 60 * 24,
         help="Cache TTL in seconds (default: 86400)",
     )
@@ -641,7 +695,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     p.add_argument(
         "--rate",
-        type=float,
+        type=positive_float,
         default=MIN_INTERVAL_SECONDS,
         help="Minimum seconds between API requests (default: 1.0)",
     )
@@ -649,23 +703,23 @@ def build_parser() -> argparse.ArgumentParser:
     sub = p.add_subparsers(dest="cmd", required=True)
 
     ps = sub.add_parser("search", help="Search anime by title and or genre")
-    ps.add_argument("--max-pages", type=int, default=10, help="Max pages to scan for genre matches")
+    ps.add_argument("--max-pages", type=positive_int, default=10, help="Max pages to scan for genre matches")
     ps.add_argument("query", nargs="?", default=None, help="Anime title")
     ps.add_argument("--genre", action="append", help="Genre filter, repeatable")
     ps.add_argument("--genres", help="Comma-separated genres")
     ps.add_argument("--match", choices=["any", "all"], default="any", help="Genre match mode")
-    ps.add_argument("--limit", type=int, default=10, help="Max results to show")
-    ps.add_argument("--fetch", type=int, default=50, help="How many results to fetch before filtering")
+    ps.add_argument("--limit", type=positive_int, default=10, help="Max results to show")
+    ps.add_argument("--fetch", type=positive_int, default=50, help="How many results to fetch before filtering")
     ps.set_defaults(func=cmd_search)
 
     ptr = sub.add_parser("trending", help="Show trending anime")
-    ptr.add_argument("--limit", type=int, default=10, help="Max results")
+    ptr.add_argument("--limit", type=positive_int, default=10, help="Max results")
     ptr.add_argument("--season", help="Filter by season: current, next, WINTER, SPRING, SUMMER, FALL")
     ptr.add_argument("--year", type=int, help="Season year")
     ptr.set_defaults(func=cmd_trending)
 
     pp = sub.add_parser("popular", help="Show popular anime")
-    pp.add_argument("--limit", type=int, default=10, help="Max results")
+    pp.add_argument("--limit", type=positive_int, default=10, help="Max results")
     pp.add_argument("--season", help="Filter by season: current, next, WINTER, SPRING, SUMMER, FALL")
     pp.add_argument("--year", type=int, help="Season year")
     pp.set_defaults(func=cmd_popular)

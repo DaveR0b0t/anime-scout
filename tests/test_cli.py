@@ -1,3 +1,4 @@
+import argparse
 import sys
 import unittest
 from datetime import date
@@ -16,6 +17,9 @@ from anime_scout.cli import (  # noqa: E402
     next_season_and_year,
     normalize_season_input,
     parse_genre_inputs,
+    positive_float,
+    positive_int,
+    is_safe_external_url,
     strip_html,
     trailer_to_url,
     validate_search_args,
@@ -47,6 +51,12 @@ class AnimeScoutHelperTests(unittest.TestCase):
     def test_strip_html_removes_tags_and_extra_space(self):
         self.assertEqual(strip_html("<b>Hello</b>   world<br>"), "Hello world")
 
+    def test_trailer_to_url_for_vimeo(self):
+        self.assertEqual(trailer_to_url("vimeo", "12345"), "https://vimeo.com/12345")
+
+    def test_trailer_to_url_rejects_unsupported_non_url_id(self):
+        self.assertEqual(trailer_to_url("other", "abc123"), "")
+
     def test_matches_genres_any_mode(self):
         self.assertTrue(matches_genres(["Action", "Drama"], ["drama", "comedy"], "any"))
 
@@ -67,6 +77,21 @@ class AnimeScoutHelperTests(unittest.TestCase):
     def test_normalize_season_input_rejects_invalid_value(self):
         with self.assertRaises(ValueError):
             normalize_season_input("holiday")
+
+
+    def test_positive_int_rejects_zero(self):
+        with self.assertRaises(argparse.ArgumentTypeError):
+            positive_int("0")
+
+    def test_positive_float_rejects_negative(self):
+        with self.assertRaises(argparse.ArgumentTypeError):
+            positive_float("-0.1")
+
+    def test_is_safe_external_url_allows_https(self):
+        self.assertTrue(is_safe_external_url("https://www.youtube.com/watch?v=abc123"))
+
+    def test_is_safe_external_url_blocks_non_http_schemes(self):
+        self.assertFalse(is_safe_external_url("javascript:alert(1)"))
 
 
 class AniListRequestTests(unittest.TestCase):
