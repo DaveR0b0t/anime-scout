@@ -553,17 +553,30 @@ def print_info(media: Dict[str, Any]) -> None:
     tr = media.get("trailer")
     if tr and tr.get("site") and tr.get("id"):
         trailer_url = trailer_to_url(tr["site"], tr["id"])
-        console.print(f"[bold]Trailer:[/bold] {trailer_url}")
+        if trailer_url:
+            console.print(f"[bold]Trailer:[/bold] {trailer_url}")
+        else:
+            console.print("[bold]Trailer:[/bold] (unsupported trailer provider)")
     else:
         console.print("[bold]Trailer:[/bold] (none listed)")
 
 
 
 def trailer_to_url(site: str, vid: str) -> str:
-    site_l = site.lower()
+    site_l = (site or "").strip().lower()
+    trailer_id = (vid or "").strip()
+
+    if not trailer_id:
+        return ""
     if site_l == "youtube":
-        return f"https://www.youtube.com/watch?v={vid}"
-    return (vid or "").strip()
+        return f"https://www.youtube.com/watch?v={trailer_id}"
+    if site_l == "dailymotion":
+        return f"https://www.dailymotion.com/video/{trailer_id}"
+    if site_l == "vimeo":
+        return f"https://vimeo.com/{trailer_id}"
+    if is_safe_external_url(trailer_id):
+        return trailer_id
+    return ""
 
 
 
@@ -640,15 +653,19 @@ def cmd_trailer(args: argparse.Namespace) -> None:
         return
 
     url = trailer_to_url(tr["site"], tr["id"])
-    if not is_safe_external_url(url):
-        raise RuntimeError("Trailer URL is not a safe HTTP(S) URL.")
+    if not url:
+        raise RuntimeError("Trailer provider is unsupported or missing a usable URL.")
 
     if args.open:
+        if not is_safe_external_url(url):
+            raise RuntimeError("Trailer URL is not a safe HTTP(S) URL.")
         webbrowser.open(url)
         console.print(f"Opened trailer: {url}")
         return
 
     if args.mpv:
+        if not is_safe_external_url(url):
+            raise RuntimeError("Trailer URL is not a safe HTTP(S) URL.")
         try:
             subprocess.run(["mpv", url], check=True)
         except FileNotFoundError:

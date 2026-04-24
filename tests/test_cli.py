@@ -51,6 +51,12 @@ class AnimeScoutHelperTests(unittest.TestCase):
     def test_strip_html_removes_tags_and_extra_space(self):
         self.assertEqual(strip_html("<b>Hello</b>   world<br>"), "Hello world")
 
+    def test_trailer_to_url_for_vimeo(self):
+        self.assertEqual(trailer_to_url("vimeo", "12345"), "https://vimeo.com/12345")
+
+    def test_trailer_to_url_rejects_unsupported_non_url_id(self):
+        self.assertEqual(trailer_to_url("other", "abc123"), "")
+
     def test_matches_genres_any_mode(self):
         self.assertTrue(matches_genres(["Action", "Drama"], ["drama", "comedy"], "any"))
 
